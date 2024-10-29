@@ -127,7 +127,7 @@ const UI = {
         UI.addControlbarHandlers();
         UI.addTouchSpecificHandlers();
         UI.addExtraKeysHandlers();
-        UI.addGamingHandlers();
+        // UI.addGamingHandlers();
         UI.addMachineHandlers();
         UI.addConnectionControlHandlers();
         UI.addClipboardHandlers();
@@ -1422,10 +1422,9 @@ const UI = {
             url.protocol = (window.location.protocol === "https:") ? 'wss:' : 'ws:';
         }
 
-
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
-                        url,
+                        url.toString(),
                         { 
                             shared: UI.getSetting('shared'),
                             repeaterID: UI.getSetting('repeaterID'),

@@ -178,10 +178,15 @@ export function eraseSetting(name) {
 
 //Are we running inside the Kasm VDI Framework
 export function isInsideKasmVDI() {
+    // GHI: We want to support the same behavior in iframe as without
+    return false;
+
     //TODO: We should use a more explicit way to detect we are running inside KasmVDI
+    /*
     try {
         return window.self !== window.top;
     } catch (e) {
         return true;
     }
+    */
 }
