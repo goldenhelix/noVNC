@@ -188,7 +188,7 @@ const UI = {
         UI.addControlbarHandlers();
         UI.addTouchSpecificHandlers();
         UI.addExtraKeysHandlers();
-        UI.addGamingHandlers();
+        // UI.addGamingHandlers();
         UI.addMachineHandlers();
         UI.addConnectionControlHandlers();
         UI.addClipboardHandlers();
@@ -1951,7 +1951,6 @@ const UI = {
             url = new URL(path, location.href);
             url.protocol = (window.location.protocol === "https:") ? 'wss:' : 'ws:';
         }
-
 
         UI.monitors = [];
         UI.sortedMonitors = [];

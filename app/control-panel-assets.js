@@ -19,6 +19,7 @@ import gamepad from './images/gamepad.png';
 import handle from './images/handle.svg';
 import handleBackground from './images/handle_bg.svg';
 import kasmLogo from './images/icons/kasm_logo.svg';
+import varseqLogo from './images/icons/varseq_logo.png';
 import keyboard from './images/keyboard.svg';
 import power from './images/power.svg';
 import settings from './images/settings.svg';
@@ -40,6 +41,7 @@ const controlPanelAssets = {
     fullscreen,
     gamepad,
     kasmLogo,
+    varseqLogo,
     keyboard,
     power,
     settings,
