@@ -2404,7 +2404,9 @@ const UI = {
             viewDragButton.classList.remove("noVNC_selected");
         }
 
-        if (UI.rfb.clipViewport) {
+        const remoteResizing = UI.getSetting('resize') === 'remote';
+
+        if (UI.rfb.clipViewport && !remoteResizing) {
             UI.showControlInput('noVNC_view_drag_button');
         } else {
             UI.hideControlInput('noVNC_view_drag_button');
