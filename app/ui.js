@@ -1494,10 +1494,13 @@ const UI = {
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
         UI.updateViewOnly(); // requires UI.rfb
 
+        document.getElementById('noVNC_status').style.visibility = "visible";
+
         /****
         *    Kasm VDI specific
         *****/
-        if (WebUtil.isInsideKasmVDI()) {
+       // *GH* We will these communication functions
+        if (true) {
             if (window.addEventListener) { // Mozilla, Netscape, Firefox
                 //window.addEventListener('load', WindowLoad, false);
                 window.addEventListener('message', UI.receiveMessage, false);
@@ -1509,12 +1512,15 @@ const UI = {
                 UI.rfb.addEventListener("clipboard", UI.clipboardRx);
             }
             UI.rfb.addEventListener("disconnect", UI.disconnectedRx);
+
             if (! WebUtil.getConfigVar('show_control_bar')) {
                 document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
             }
 
             //keep alive for websocket connection to stay open, since we may not control reverse proxies
             //send a keep alive within a window that we control
+            // *GH* Not needed
+            /*
             UI._sessionTimeoutInterval = setInterval(function() {
 
                 const timeSinceLastActivityInS = (Date.now() - UI.rfb.lastActiveAt) / 1000;
@@ -1530,8 +1536,7 @@ const UI = {
                     UI.rfb.sendKey(1, null, false);
                 }
             }, 5000);
-        } else {
-            document.getElementById('noVNC_status').style.visibility = "visible";
+            */
         }
 
         //key events for KasmVNC control
@@ -1782,6 +1787,19 @@ const UI = {
                     break;
                 case 'control_displays':
                     parent.postMessage({ action: 'can_control_displays', value: true}, '*' );
+                    break;
+                case 'show_panel':
+                    document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: block');
+                    break;
+                case 'hide_panel':
+                    document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
+                    break;
+                case 'open_clipboard':
+                    console.log('open');
+                    UI.openClipboardPanel();
+                    break;
+                case 'close_clipboard':
+                    UI.closeClipboardPanel();
                     break;
                 case 'terminate':
                     //terminate a session, different then disconnect in that it is assumed KasmVNC will be shutdown
@@ -2930,8 +2948,6 @@ const UI = {
     },
 
     screenRegistered(e) {
-        console.log('screen registered')
-        
         // Get the current screen plan
         // When a new display is added, it is defaulted to be placed to the far right relative to existing displays and to the top
         if (UI.rfb) {

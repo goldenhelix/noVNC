@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* Container to maintain aspect ratio and full width */
+        .vnc-container {
+            position: relative;
+            width: 100%;
+            height: 80vh;
+            overflow: hidden;
+        }
+
+        /* Responsive iframe styling */
+        .vnc-iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Alternative fixed size container */
+        .vnc-container-fixed {
+            position: relative;
+            width: 1280px;
+            height: 800px;
+            margin: 0 auto;
+        }
+        .flex {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #2563eb;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <!-- Responsive full-screen implementation -->
+     <div class="flex">
+        <button onclick="sendMessage('show_panel')">Show Panel</button>
+        <button onclick="sendMessage('hide_panel')">Hide Panel</button>
+        <button onclick="sendMessage('open_clipboard')">Open Clipboard</button>
+        <button onclick="sendMessage('close_clipboard')">Close Clipboard</button>
+        <button onclick="sendMessage('open_displays_mode')">Open Displays</button>
+        <button onclick="sendMessage('close_displays_mode')">Close Displays</button>
+        <button onclick="sendMessage('resize')">Resize</button>
+        <button onclick="sendMessage('set_perf_stats', true)">Show Stats</button>
+        <button onclick="sendMessage('set_perf_stats', false)">Hide Stats</button>
+     </div>
+    <div class="vnc-container">
+        <!--src="vnc.html#show_control_bar=true" to show control bar-->
+        <iframe 
+            id="vnc-iframe"
+            src="vnc.html"
+            class="vnc-iframe"
+            allow="clipboard-read; clipboard-write; fullscreen"
+            allowfullscreen="true"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
+        ></iframe>
+    </div>
+
+    <script>
+        // Function to send messages to the VNC iframe
+        function sendMessage(action, value = null) {
+            const message = { action };
+            if (value !== null) {
+                message.value = value;
+            }
+            
+            // Get the iframe element - adjust the selector as needed
+            const vncIframe = document.querySelector('#vnc-iframe');
+            if (vncIframe) {
+                vncIframe.contentWindow.postMessage(message, '*');
+            } else {
+                console.error('VNC iframe not found');
+            }
+        }
+
+        // Function to set custom resolution
+        function setResolution() {
+            const resX = parseInt(document.getElementById('resX').value);
+            const resY = parseInt(document.getElementById('resY').value);
+            
+            if (resX > 0 && resY > 0) {
+                sendMessage('set_resolution', {
+                    value_x: resX,
+                    value_y: resY
+                });
+            } else {
+                alert('Please enter valid resolution values');
+            }
+        }
+
+        // Function to set video quality
+        function setVideoQuality() {
+            const quality = parseInt(document.getElementById('quality').value);
+            if (quality >= 0 && quality <= 9) {
+                sendMessage('setvideoquality', { value: quality });
+            } else {
+                alert('Please enter a quality value between 0 and 9');
+            }
+        }
+
+        // Function to set idle timeout
+        function setIdleTimeout() {
+            const timeout = parseInt(document.getElementById('idleTimeout').value);
+            if (timeout >= 0) {
+                sendMessage('set_idle_timeout', timeout);
+            } else {
+                alert('Please enter a valid timeout value');
+            }
+        }
+    </script>
+</body>
+
+</html>
