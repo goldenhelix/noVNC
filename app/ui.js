@@ -2038,10 +2038,13 @@ const UI = {
         UI.rfb.preferLocalCursor = UI.getSetting('prefer_local_cursor');
         UI.updateViewOnly(); // requires UI.rfb
 
+        document.getElementById('noVNC_status').style.visibility = "visible";
+
         /****
         *    Kasm VDI specific
         *****/
-        if (WebUtil.isInsideKasmVDI()) {
+       // *GH* We will these communication functions
+        if (true) {
             if (window.addEventListener) { // Mozilla, Netscape, Firefox
                 //window.addEventListener('load', WindowLoad, false);
                 window.addEventListener('message', UI.receiveMessage, false);
@@ -2054,6 +2057,7 @@ const UI = {
             }
             UI.rfb.addEventListener("activity", UI.kasmActivity);
             UI.rfb.addEventListener("disconnect", UI.disconnectedRx);
+
             if (! WebUtil.getConfigVar('show_control_bar')) {
                 document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
             }
@@ -2489,6 +2493,18 @@ const UI = {
                 case 'enable_threading':
                     UI.forceSetting('enable_threading', event.data.value, false);
                     UI.threading();
+                    break;
+                case 'show_panel':
+                    document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: block');
+                    break;
+                case 'hide_panel':
+                    document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
+                    break;
+                case 'open_clipboard':
+                    UI.openClipboardPanel();
+                    break;
+                case 'close_clipboard':
+                    UI.closeClipboardPanel();
                     break;
                 case 'terminate':
                     //terminate a session, different then disconnect in that it is assumed KasmVNC will be shutdown
@@ -3731,8 +3747,6 @@ const UI = {
     },
 
     screenRegistered(e) {
-        console.log('screen registered')
-
         // Get the current screen plan
         // When a new display is added, it is defaulted to be placed to the far right relative to existing displays and to the top
         if (UI.rfb) {
