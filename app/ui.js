@@ -503,6 +503,8 @@ const UI = {
             .addEventListener('change', UI.clipboardSend);
         document.getElementById("noVNC_clipboard_clear_button")
             .addEventListener('click', UI.clipboardClear);
+        document.getElementById("noVNC_clipboard_close_button")
+            .addEventListener('click', UI.closeClipboardPanel);
     },
 
     // Add a call to save settings when the element changes,
@@ -1604,7 +1606,7 @@ const UI = {
         } else {
             msg = _("Connected (unencrypted) to ") + UI.desktopName;
         }
-        UI.showStatus(msg);
+        // UI.showStatus(msg);
         UI.showStats();
         UI.updateVisualState('connected');
 
@@ -1639,7 +1641,7 @@ const UI = {
             return;
         } else {
             UI.updateVisualState('disconnected');
-            UI.showStatus(_("Disconnected"), 'normal');
+            // UI.showStatus(_("Disconnected"), 'normal');
         }
 
         document.title = PAGE_TITLE;
