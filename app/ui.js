@@ -497,7 +497,7 @@ const UI = {
     },
 
     addClipboardHandlers() {
-        UI.addClickHandle('noVNC_clipboard_button', UI.toggleClipboardPanel);
+        // UI.addClickHandle('noVNC_clipboard_button', UI.toggleClipboardPanel);
 
         document.getElementById("noVNC_clipboard_text")
             .addEventListener('change', UI.clipboardSend);
@@ -1304,15 +1304,15 @@ const UI = {
 
         document.getElementById('noVNC_clipboard')
             .classList.add("noVNC_open");
-        document.getElementById('noVNC_clipboard_button')
-            .classList.add("noVNC_selected");
+        // document.getElementById('noVNC_clipboard_button')
+        //     .classList.add("noVNC_selected");
     },
 
     closeClipboardPanel() {
         document.getElementById('noVNC_clipboard')
             .classList.remove("noVNC_open");
-        document.getElementById('noVNC_clipboard_button')
-            .classList.remove("noVNC_selected");
+        // document.getElementById('noVNC_clipboard_button')
+        //     .classList.remove("noVNC_selected");
     },
 
     toggleClipboardPanel(e) {
@@ -2871,12 +2871,12 @@ const UI = {
         if (UI.rfb.viewOnly) {
             UI.hideControlInput("noVNC_keyboard_button");
             UI.hideControlInput("noVNC_toggle_extra_keys_button");
-            UI.hideControlInput("noVNC_clipboard_button");
+            // UI.hideControlInput("noVNC_clipboard_button");
             UI.hideControlInput("noVNC_game_mode_button");
         } else {
             UI.showControlInput("noVNC_keyboard_button");
             UI.showControlInput("noVNC_toggle_extra_keys_button");
-            UI.showControlInput("noVNC_clipboard_button");
+            // UI.showControlInput("noVNC_clipboard_button");
             UI.showControlInput("noVNC_game_mode_button"); 
         }
     },
