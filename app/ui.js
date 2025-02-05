@@ -296,8 +296,8 @@ const UI = {
         UI.initSetting('show_dot', false);
         UI.initSetting('path', 'websockify');
         UI.initSetting('repeaterID', '');
-        UI.initSetting('reconnect', false);
-        UI.initSetting('reconnect_delay', 5000);
+        UI.initSetting('reconnect', true);
+        UI.initSetting('reconnect_delay', 2000);
         UI.initSetting('idle_disconnect', 20);
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
@@ -1885,31 +1885,12 @@ const UI = {
 
             //keep alive for websocket connection to stay open, since we may not control reverse proxies
             //send a keep alive within a window that we control
-            // *GH* Not needed
-            /*
             UI._sessionTimeoutInterval = setInterval(function() {
-               if (UI.rfb) {
-                    const timeSinceLastActivityInS = (Date.now() - UI.rfb.lastActiveAt) / 1000;
-                    let idleDisconnectInS = 1200; //20 minute default
-                    if (Number.isFinite(parseFloat(UI.rfb.idleDisconnect))) {
-                        idleDisconnectInS = parseFloat(UI.rfb.idleDisconnect) * 60;
-                    }
-
-                    if (timeSinceLastActivityInS > idleDisconnectInS) {
-                        Log.Warn("Idle Disconnect reached, disconnecting rfb session...");
-                        parent.postMessage({ action: 'idle_session_timeout', value: 'Idle session timeout exceeded'}, '*' );
-
-                        // in some cases the intra-frame message could be blocked, fall back to navigating to a disconnect page.
-                        setTimeout(function() {
-                            window.location.replace('disconnected.html');
-                        }, 10000);
-                    } else {
-                        //send keep-alive
-                        UI.rfb.sendKeepAlive();
-                    }
+                if (UI.rfb) {
+                    //GH: keep-alive only; never auto-disconnect on idle
+                    UI.rfb.sendKeepAlive();
                 }
             }, 5000);
-            */
         }
 
         //key events for KasmVNC control
@@ -1995,6 +1976,7 @@ const UI = {
         // UI.disconnect() won't be used in those cases.
         UI.connected = false;
 
+        clearInterval(UI._sessionTimeoutInterval);
         UI.rfb = undefined;
         UI.monitors = [];
         UI.sortedMonitors = [];
