@@ -323,8 +323,8 @@ const UI = {
         UI.initSetting('show_dot', false);
         UI.initSetting('path', 'websockify');
         UI.initSetting('repeaterID', '');
-        UI.initSetting('reconnect', WebUtil.isInsideKasmVDI());
-        UI.initSetting('reconnect_delay', 5000);
+        UI.initSetting('reconnect', true);
+        UI.initSetting('reconnect_delay', 2000);
         UI.initSetting('reconnect_retries', 5);
         UI.initSetting('idle_disconnect', 20);
         UI.initSetting('prefer_local_cursor', true);
@@ -2196,15 +2196,10 @@ const UI = {
                 return;
             }
 
-            const timeSinceLastActivityInS = (Date.now() - UI.kasmSessionLastActiveAt) / 1000;
-            const idleDisconnectInS = UI.kasmIdleDisconnectInS || 1200; //20 minute default
-
-            if (timeSinceLastActivityInS > idleDisconnectInS) {
-                if (!UI.kasmIdleTimeoutSent) {
-                    Log.Warn("Idle Disconnect reached, disconnecting rfb session...");
-                    UI.notifyKasmSessionTimeout();
-                }
-            } else if (UI.rfb) {
+            // *GH*: keep-alive only; never auto-disconnect on idle. The parent
+            // frame (VSWarehouse) owns idle policy for embedded sessions, so
+            // upstream's idle-disconnect branch is deliberately not run here.
+            if (UI.rfb) {
                 //send keep-alive
                 UI.rfb.sendKeepAlive();
             }
@@ -2269,6 +2264,11 @@ const UI = {
         // UI.disconnect() won't be used in those cases.
         UI.connected = false;
 
+        // *GH*: upstream now owns this cleanup via stopKasmSessionTimeoutInterval()
+        // (called below on the non-reconnect path). A bare clearInterval() here
+        // would leave UI._sessionTimeoutInterval non-null, and
+        // startKasmSessionTimeoutInterval() early-returns on a non-null handle —
+        // which would silently kill keep-alives after every auto-reconnect.
         UI.rfb = undefined;
         UI.monitors = [];
         UI.sortedMonitors = [];
