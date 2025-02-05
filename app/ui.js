@@ -249,8 +249,8 @@ const UI = {
         UI.initSetting('show_dot', false);
         UI.initSetting('path', 'websockify');
         UI.initSetting('repeaterID', '');
-        UI.initSetting('reconnect', false);
-        UI.initSetting('reconnect_delay', 5000);
+        UI.initSetting('reconnect', true);
+        UI.initSetting('reconnect_delay', 2000);
         UI.initSetting('idle_disconnect', 20);
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
@@ -1521,10 +1521,8 @@ const UI = {
 
             //keep alive for websocket connection to stay open, since we may not control reverse proxies
             //send a keep alive within a window that we control
-            // *GH* Not needed
-            /*
             UI._sessionTimeoutInterval = setInterval(function() {
-
+                /* GH: No idle disconnect
                 const timeSinceLastActivityInS = (Date.now() - UI.rfb.lastActiveAt) / 1000;
                 let idleDisconnectInS = 1200; //20 minute default 
                 if (Number.isFinite(parseFloat(UI.rfb.idleDisconnect))) {
@@ -1534,11 +1532,13 @@ const UI = {
                 if (timeSinceLastActivityInS > idleDisconnectInS) {
                     parent.postMessage({ action: 'idle_session_timeout', value: 'Idle session timeout exceeded'}, '*' );
                 } else {
-                    //send keep-alive
-                    UI.rfb.sendKey(1, null, false);
+                */ 
+                //send keep-alive
+                if (UI.rfb) {
+                  UI.rfb.sendKey(1, null, false);
                 }
+                //}
             }, 5000);
-            */
         }
 
         //key events for KasmVNC control
@@ -1623,6 +1623,7 @@ const UI = {
         // UI.disconnect() won't be used in those cases.
         UI.connected = false;
 
+        clearInterval(UI._sessionTimeoutInterval);
         UI.rfb = undefined;
 
         if (!e.detail.clean) {

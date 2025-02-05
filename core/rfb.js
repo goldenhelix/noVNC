@@ -1638,7 +1638,9 @@ export default class RFB extends EventTargetMixin {
         // Force Chrome to recalculate the layout by asking for
         // an element's dimensions
         this._screen.getBoundingClientRect();
-        this._screen.style.overflow = orig;
+
+        // *GH* We keep the scrollbars hidden (Chrome shows them with the auto canvas size computed)
+        // this._screen.style.overflow = orig;
     }
 
     /*
