@@ -1822,6 +1822,12 @@ const UI = {
             UI.initStreamModeSetting(e.detail?.codecs, e.detail?.configurations);
         });
 
+        // Apply view_only before any other rfb config so the connection
+        // instantiates as read-only — no resize/input fires before viewOnly
+        // is set. Setting is sourced from ?view_only=true URL/hash param via
+        // initSetting -> WebUtil.getConfigVar (in-memory only, never persisted).
+        UI.updateViewOnly();
+
         UI.rfb.translateShortcuts = UI.getSetting('translate_shortcuts');
         UI.rfb.clipViewport = UI.getSetting('view_clip');
         UI.rfb.scaleViewport = UI.getSetting('resize') === 'scale';
@@ -1858,7 +1864,6 @@ const UI = {
             UI.rfb.clipboardSeamless = false;
         }
         UI.rfb.preferLocalCursor = UI.getSetting('prefer_local_cursor');
-        UI.updateViewOnly(); // requires UI.rfb
 
         document.getElementById('noVNC_status').style.visibility = "visible";
 
