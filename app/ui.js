@@ -1794,7 +1794,7 @@ const UI = {
         UI.showControlInput('noVNC_displays_button')
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
-                        url,
+                        url.toString(),
                         {
                             shared: UI.getSetting('shared'),
                             repeaterID: UI.getSetting('repeaterID'),
