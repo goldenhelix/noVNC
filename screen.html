@@ -91,7 +91,12 @@
     </div>
     <div id="noVNC_notification_overlay">0</div>
 
-    <div id="mySidenav" class="loadin">
+    <!-- *GH* sidebar with the "Control Panel" / Fullscreen button is
+         hidden — VSWarehouse drives multi-display from the parent
+         frame, so we don't expose any per-screen UI. JS in ui_screen.js
+         still references these elements, so we hide via display:none
+         rather than deleting them. -->
+    <div id="mySidenav" class="loadin" style="display: none;">
         <div id="menuTab" class="tab touch-none" style="top: 49px;">
             <div class="flex flex-col tabinner rounded-r-lg">
                 <div id="dragHandler" class="flex justify-center cursor-move items-center bg-black/5 rounded-tr-lg py-1">
