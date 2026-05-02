@@ -1989,7 +1989,7 @@ const UI = {
         if (!e.detail.clean) {
             UI.updateVisualState('disconnected');
             if (wasConnected) {
-                UI.showStatus(_("Something went wrong, connection is closed"),
+                UI.showStatus(_("The connection is closed"),
                               'error');
             } else {
                 UI.showStatus(_("Failed to connect to server"), 'error');
