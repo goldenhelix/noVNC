@@ -20,8 +20,12 @@ import Display from "./display.js";
 import Inflator from "./inflator.js";
 import Deflator from "./deflator.js";
 import Keyboard from "./input/keyboard.js";
-import initializePrinterRelay from "./output/printer.js";
-import initializeSmartcardRelay from "./output/smartcard.js";
+// *GH* printer + smartcard subscribers are dropped — we don't ship
+// the server-side daemons (kasm_printer_service, kasm_smartcard_bridge)
+// in the goldenhelix images, so the SubscribeUnixRelay for those names
+// just spams "No such unix channel" warnings on every connect.
+// import initializePrinterRelay from "./output/printer.js";
+// import initializeSmartcardRelay from "./output/smartcard.js";
 import initializeOpenUrlRelay from "./output/openurl.js";
 import initializeDownloadRelay from "./output/download.js";
 import initializeUploadRelay from "./output/upload.js";
@@ -3396,8 +3400,7 @@ export default class RFB extends EventTargetMixin {
         this._updateConnectionState('connected');
 
         //Register pipe based extensions
-        initializePrinterRelay(this);
-        initializeSmartcardRelay(this);
+        // *GH* printer + smartcard skipped — see import block above.
         initializeOpenUrlRelay(this);
         initializeDownloadRelay(this);
         initializeUploadRelay(this);
