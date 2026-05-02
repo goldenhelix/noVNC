@@ -29,6 +29,9 @@ function ensurePanel() {
         zIndex: 2147483600,
         display: "none",
         padding: "8px",
+        // Children with onclick (the close button) override this back to
+        // auto, so the panel itself is click-through but the X is not.
+        pointerEvents: "auto",
     });
 
     const header = document.createElement("div");
