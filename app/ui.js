@@ -904,7 +904,11 @@ const UI = {
 
         Log.Info('Switching to mode: ', modeName ? modeName : 'Unknown Mode ', 'value:', mode);
 
-        showNotification(modeName || 'Mode Changed');
+        // *GH* Suppress the "SW H.265" / "WEBP" notification overlay —
+        // confusing to end users. The codec is also surfaced in the
+        // performance stats panel (when enabled).
+        UI._lastStreamModeName = modeName || 'Unknown';
+        // showNotification(modeName || 'Mode Changed');
     },
 
     initStreamModeSetting(codecs, configurations) {
@@ -1684,7 +1688,8 @@ const UI = {
             try {
                 let obj = JSON.parse(e.detail.text);
                 let fps = UI.rfb.statsFps;
-                document.getElementById("noVNC_connection_stats").innerHTML = "CPU: " + obj[0] + "/" + obj[1] + " | Network: " + obj[2] + "/" + obj[3] + " | FPS: " + UI.rfb.statsFps + " Dropped FPS: " + UI.rfb.statsDroppedFps;
+                const codec = UI._lastStreamModeName ? " | Codec: " + UI._lastStreamModeName : "";
+                document.getElementById("noVNC_connection_stats").innerHTML = "CPU: " + obj[0] + "/" + obj[1] + " | Network: " + obj[2] + "/" + obj[3] + " | FPS: " + UI.rfb.statsFps + " Dropped FPS: " + UI.rfb.statsDroppedFps + codec;
                 UI.updateFpsChart(Number(fps));
                 console.log(e.detail.text);
             } catch (err) {
