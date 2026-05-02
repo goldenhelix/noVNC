@@ -6,7 +6,7 @@ const TYPE_CHUNK = 1;
 const TYPE_END = 2;
 
 const CHUNK_SIZE = 64 * 1024;
-const DEFAULT_DEST = "~/Downloads";
+const DEFAULT_DEST = "~/Workspace/Documents";
 
 const enc = new TextEncoder();
 
@@ -189,9 +189,20 @@ function showModal(files, onUpload, onCancel) {
     const cancelBtn = mkBtn("Cancel", "secondary");
     const uploadBtn = mkBtn("Upload", "primary");
 
-    const cleanup = () => backdrop.remove();
-    cancelBtn.onclick = () => { cleanup(); onCancel(); };
-    uploadBtn.onclick = () => {
+    let removed = false;
+    const cleanup = () => {
+        if (removed) return;
+        removed = true;
+        // Hide first so the user sees an immediate response, then remove
+        // from DOM. Idempotent — guarded by `removed` so re-entering
+        // (e.g. blur after Enter) can't try to remove a detached node.
+        backdrop.style.pointerEvents = "none";
+        backdrop.style.display = "none";
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+    };
+    cancelBtn.onclick = (e) => { e.stopPropagation(); cleanup(); onCancel(); };
+    uploadBtn.onclick = (e) => {
+        e.stopPropagation();
         const dest = destInput.value.trim() || DEFAULT_DEST;
         cleanup();
         onUpload(dest);
