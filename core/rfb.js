@@ -23,6 +23,8 @@ import Keyboard from "./input/keyboard.js";
 import initializePrinterRelay from "./output/printer.js";
 import initializeSmartcardRelay from "./output/smartcard.js";
 import initializeOpenUrlRelay from "./output/openurl.js";
+import initializeDownloadRelay from "./output/download.js";
+import initializeUploadRelay from "./output/upload.js";
 import GestureHandler from "./input/gesturehandler.js";
 import Cursor from "./util/cursor.js";
 import Websock from "./websock.js";
@@ -3397,6 +3399,8 @@ export default class RFB extends EventTargetMixin {
         initializePrinterRelay(this);
         initializeSmartcardRelay(this);
         initializeOpenUrlRelay(this);
+        initializeDownloadRelay(this);
+        initializeUploadRelay(this);
 
         return true;
     }
