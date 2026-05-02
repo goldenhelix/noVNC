@@ -286,5 +286,14 @@ function attachDragDrop(rfb) {
 
 export default (rfb) => {
     if (!rfb._isPrimaryDisplay) return;
+
+    // Xvnc's VNCSConnectionST::unixRelay() only forwards a client's
+    // outbound UnixRelay messages to the daemon IF the client is
+    // subscribed to that relay name. We don't actually consume any
+    // server→client traffic on this channel (the upload daemon is
+    // receive-only as far as the JS side is concerned), but the
+    // subscribe is required to register sending permission.
+    rfb.subscribeUnixRelay("upload", () => {});
+
     attachDragDrop(rfb);
 };
