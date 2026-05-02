@@ -986,8 +986,12 @@ const UI = {
 
         Log.Info('Switching to mode: ', modeName ? modeName : 'Unknown Mode ', 'value:', mode);
 
-        if (!WebUtil.isInsideKasmVDI() || UI.getSettingElement(UI_SETTINGS.SHOW_NOTIFICATIONS) || WebUtil.getConfigVar(UI_SETTINGS.SHOW_NOTIFICATIONS))
-            showNotification(modeName || 'Mode Changed');
+        UI._lastStreamModeName = modeName || 'Unknown';
+        // *GH* Suppress the "SW H.265" / "WEBP" notification overlay — confusing to
+        // end users. The codec is surfaced in the performance stats panel instead.
+        // Upstream (for reference on the next rebase):
+        // if (!WebUtil.isInsideKasmVDI() || UI.getSettingElement(UI_SETTINGS.SHOW_NOTIFICATIONS) || WebUtil.getConfigVar(UI_SETTINGS.SHOW_NOTIFICATIONS))
+        //     showNotification(modeName || 'Mode Changed');
     },
 
     initStreamModeSetting(codecs, configurations) {
@@ -1767,7 +1771,8 @@ const UI = {
             let obj = JSON.parse(e.detail.text);
             let fps = UI.rfb.statsFps;
             if (!WebUtil.isInsideKasmVDI()) {
-                document.getElementById("noVNC_connection_stats").textContent = "CPU: " + obj[0] + "/" + obj[1] + " | Network: " + obj[2] + "/" + obj[3] + " | FPS: " + UI.rfb.statsFps + " Dropped FPS: " + UI.rfb.statsDroppedFps;
+                const codec = UI._lastStreamModeName ? " | Codec: " + UI._lastStreamModeName : "";
+                document.getElementById("noVNC_connection_stats").textContent = "CPU: " + obj[0] + "/" + obj[1] + " | Network: " + obj[2] + "/" + obj[3] + " | FPS: " + UI.rfb.statsFps + " Dropped FPS: " + UI.rfb.statsDroppedFps + codec;
                 if (UI.fpsChart) {
                     UI.fpsChart.update(Number(fps));
                 }
