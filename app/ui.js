@@ -299,7 +299,7 @@ const UI = {
         UI.initSetting('reconnect', true);
         UI.initSetting('reconnect_delay', 2000);
         UI.initSetting('idle_disconnect', 20);
-        UI.initSetting('prefer_local_cursor', false);
+        UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
         UI.initSetting('enable_perf_stats', false);
         UI.initSetting('enable_threading', true);
