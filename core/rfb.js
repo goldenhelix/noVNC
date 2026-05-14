@@ -29,6 +29,7 @@ import Keyboard from "./input/keyboard.js";
 import initializeOpenUrlRelay from "./output/openurl.js";
 import initializeDownloadRelay from "./output/download.js";
 import initializeUploadRelay from "./output/upload.js";
+import initializeHostRelay from "./output/host.js";
 import GestureHandler from "./input/gesturehandler.js";
 import Cursor from "./util/cursor.js";
 import Websock from "./websock.js";
@@ -3238,6 +3239,7 @@ export default class RFB extends EventTargetMixin {
         initializeOpenUrlRelay(this);
         initializeDownloadRelay(this);
         initializeUploadRelay(this);
+        initializeHostRelay(this);
 
         return true;
     }
