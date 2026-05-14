@@ -8,6 +8,10 @@ const TYPE_ERROR = 3;
 
 const decoder = new TextDecoder("utf-8");
 
+const isInIframe = () => {
+    try { return window.self !== window.top; } catch (e) { return true; }
+};
+
 function readString(view, offset, lenBytes) {
     const len = lenBytes === 2 ? view.getUint16(offset, false) : view.getUint32(offset, false);
     const start = offset + lenBytes;
@@ -17,6 +21,18 @@ function readString(view, offset, lenBytes) {
 }
 
 function triggerDownload(blob, filename) {
+    // In a sandboxed iframe, clicking <a download href="blob:..."> trips
+    // CSP frame-src in Firefox (the click is evaluated as a frame navigation
+    // before the download interception). Forward the blob to the parent and
+    // let it issue the download in its own document context — same pattern
+    // as openurl.js.
+    if (isInIframe()) {
+        window.parent.postMessage({
+            action: "download",
+            value: { blob, filename },
+        }, "*");
+        return;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
