@@ -325,13 +325,23 @@ const UI = {
         UI.initSetting('repeaterID', '');
         UI.initSetting('reconnect', true);
         UI.initSetting('reconnect_delay', 2000);
-        // *GH*: 0 == unlimited (see hasReconnectRetriesRemaining). Upstream
-        // defaults to 5, which with our 2s delay gives up ~10s into an outage
-        // and leaves the embedded session permanently dead — and because
-        // isInsideKasmVDI() is false here, reconnectRetriesExceeded() only
-        // logs and opens the control bar, so the parent frame is never told.
-        // Unlimited retries is what this fork did before upstream added a cap.
-        UI.initSetting('reconnect_retries', 0);
+        // *GH*: must stay FINITE. 0 would mean unlimited (see
+        // hasReconnectRetriesRemaining), and with reconnect forced on and
+        // upstream's VNC-377 ordering — shouldAutoReconnectDisconnect() no
+        // longer consults detail.clean at all — an unlimited loop never
+        // terminates for a server that is gone for good (logout, docker stop,
+        // session crash). The server cannot rescue us either: the only code
+        // path that sets serverNotice.graceful is the idle-timeout notify in
+        // VNCSConnectionST::checkIdleTimeout(), which is disabled here.
+        // reconnectRetriesExceeded() is the terminal state we want, and it is
+        // already wired to the pre-rebase behavior (inhibitReconnect + the
+        // 'disconnected' screen).
+        //
+        // reconnectAttempts resets on every successful connect, so this bounds
+        // CONSECUTIVE failures only: 30 x reconnect_delay(2000ms) ~= 60s of
+        // grace for a sleeping laptop or a wifi blip, then a real disconnected
+        // screen. Upstream's default of 5 (~10s here) is too twitchy for us.
+        UI.initSetting('reconnect_retries', 30);
         UI.initSetting('idle_disconnect', 20);
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
@@ -523,6 +533,10 @@ const UI = {
 
     addConnectionControlHandlers() {
         UI.addClickHandle('noVNC_disconnect_button', UI.disconnect);
+        // *GH*: upstream ships #noVNC_cancel_reconnect_button in index.html and
+        // styles it in base.css, but binds it nowhere — the Cancel under the
+        // "Reconnecting..." spinner is dead, leaving no way out of the loop.
+        UI.addClickHandle('noVNC_cancel_reconnect_button', UI.cancelReconnect);
 
         var connect_btn_el = document.getElementById("noVNC_connect_button_2");
         if (typeof(connect_btn_el) != 'undefined' && connect_btn_el != null)
@@ -2150,6 +2164,11 @@ const UI = {
             UI.reconnectCallback = null;
         }
 
+        // *GH*: make Cancel terminal. Without this the next disconnect event
+        // would start the loop again, which is not what "Cancel" means to a
+        // user staring at the spinner.
+        UI.inhibitReconnect = true;
+
         UI.updateVisualState('disconnected');
 
         UI.openControlbar();
@@ -2342,9 +2361,22 @@ const UI = {
     },
 
     switchToImageMode(e) {
+        // *GH*: EventTargetMixin dispatches with callback.call(this, event), so
+        // `this` is the RFB that raised it. A WebCodecs decoder error callback
+        // is asynchronous and its decoder is never disposed on disconnect, so a
+        // decoder belonging to a torn-down connection can fire long after
+        // disconnectFinished() set UI.rfb = undefined — or, worse, after a
+        // reconnect has installed a NEW RFB, forcing a healthy session into
+        // image mode. Forced auto-reconnect makes both windows routine.
+        if (this !== UI.rfb) {
+            Log.Warn('Ignoring imagemode event from a stale RFB connection');
+            return;
+        }
+
         Log.Warn('Switching to image mode due to decoder error or incompatibility');
 
         const streamModeElem = UI.getSettingElement(UI_SETTINGS.STREAM_MODE);
+        if (!streamModeElem) return;
         const mode = encodings.pseudoEncodingStreamingModeJpegWebp;
         streamModeElem.value = mode;
         UI.forceSetting(UI_SETTINGS.STREAM_MODE, mode, false);
