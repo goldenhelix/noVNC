@@ -62,6 +62,10 @@ smoke test, then move the branch.
 | 20 | `4faac81` | Refresh GOLDENHELIX.md | Documentation. |
 | 21 | `24222b6` | Iframe embedding: downloads via parent + host channel | `core/output/host.js`; Firefox CSP `frame-src` blocks `blob:` URLs in a sandboxed iframe, so downloads route through `parent.postMessage`. |
 | 22 | `94ed316` | Harden upload drag/drop and reconnect | New on the 20260828 rebase — see **Reconnect** below. |
+| 23 | `b9fa613` | Bounded reconnect retries, working Cancel, stale-RFB guard | See **Reconnect**. |
+| 24 | `90bac5d` | Tear down per-connect listeners and timers on disconnect | See **Per-reconnect leaks**. |
+| 25 | `c2a4524` | Re-attach secondary displays when the primary reconnects | See **Multi-monitor**. |
+| 26 | `0d7735d` | Save and restore the secondary-display set | See **Multi-monitor**. |
 
 Two commits from the previous branch were dropped as net-zero: a
 `prefer_local_cursor` default flip and its revert.
@@ -137,6 +141,91 @@ VSWarehouse owns idle policy. Note the guard: a bare
 makes `startKasmSessionTimeoutInterval()` early-return forever, killing
 keep-alives after the first reconnect. That line was removed in the
 rebase; don't reintroduce it.
+
+## Per-reconnect leaks (patch #24)
+
+Upstream builds a **new RFB for every reconnect**, so anything installed
+per-connect and never removed now accumulates once per network blip rather than
+once per page load. `_disconnect()` now releases the `_controlChannel`
+BroadcastChannel (its listener was added with an anonymous `.bind()`, so the
+bound reference is kept), the `window` `blur`/`mouseover` listeners, the iOS
+`touchend` listener, and the `_udpUpgradeTimeout` / `_forceFullFrameUpdateTimeout`
+timers. `app/ui_screen.js` closes its channel too, and the ctrl+shift shortcut
+`keyup` handler in `app/ui.js` is install-once.
+
+**When adding anything per-connect, ask whether it survives a reconnect.** This
+is now the fork's single most common bug shape — see also patch #22.
+
+## Multi-monitor: re-attach and save/restore (patches #25, #26)
+
+### Re-attach across a primary reconnect
+
+The `BroadcastChannel` name is the page URL directory (`core/rfb.js:146`), so it
+is **stable across a primary reconnect** — the popups never stop being reachable.
+Previously they were simply told to give up: the primary broadcast
+`secondarydisconnected` and each popup dropped to a terminal disconnected screen
+needing a manual Connect click.
+
+Now the primary broadcasts `primaryready` on reaching `connected`, and a
+secondary that saw `secondarydisconnected` drops its dead RFB, **keeps its
+control channel open** (so not `UI.disconnect()`, which closes it), shows the
+reconnecting state, and re-runs `connect()` when the primary returns. Bounded at
+90s — past the primary's own 30 × 2s budget — then a real disconnected screen.
+
+Also fixed: `secondarydisconnected` was broadcast by *any* RFB, so closing one
+secondary popup disconnected all of its siblings. Only the primary sends it.
+
+### Saved display set
+
+Persisted in `localStorage` under `gh_display_set`. VSWarehouse embeds kasmweb
+**same-origin** (the iframe `src` is a relative path), so localStorage is one
+unpartitioned bucket shared across sessions — and per-device is the correct
+scope, since which monitors someone spreads across is a property of their desk,
+not their account.
+
+We store only **how many** secondary displays and **which physical screen** each
+sat on (signed by `label|left,top,width,height|dpr`). Never by `screenID`, which
+is a fresh uuid per popup load. The **arrangement is deliberately not saved** —
+it already restores itself, because each secondary reports its own
+`window.screenLeft`/`screenTop` when it registers.
+
+Deliberate behaviors, each of which is load-bearing:
+
+- **Saving never writes a count of zero.** Teardown unregisters every secondary,
+  and that must not erase the set. Clearing is explicit, via `forget_displays`.
+- Saves are **debounced**: `screenregistered` also fires on ordinary browser
+  resizes.
+- Saves are skipped while a restore is replaying, and while disconnected.
+- Placement uses the **live** screen's `avail*` box; the record stores full
+  bounds for identity only.
+
+### Parent (VSWarehouse) contract
+
+`UI.sendMessage()` is dead in this fork (gated on the hardcoded-false
+`isInsideKasmVDI()`), so these use an ungated `window.parent.postMessage`,
+matching `openurl.js` / `host.js` / `control_displays`.
+
+| Direction | Message |
+|-----------|---------|
+| parent → client | `{action: 'query_restore_displays'}` |
+| parent → client | `{action: 'restore_displays'}` — **must be sent from a real click handler** |
+| parent → client | `{action: 'forget_displays'}` |
+| client → parent | `{action: 'can_restore_displays', value: {available, count, remaining}}` |
+| client → parent | `{action: 'restore_displays_result', value: {opened, remaining, blocked}}` |
+
+The message listener is registered inside `UI.connect()`, so the parent should
+wait for the existing `noVNC_initialized` message before sending anything.
+
+`can_restore_displays` is announced unsolicited at init, on every connect, and
+after every save — so the parent can show/hide its control with no polling.
+
+**One popup per click.** `window.open()` requires transient user activation and
+*consumes* it. The parent is same-origin, so its click does activate this frame,
+but each `restore_displays` opens at most one window. The parent should re-arm
+its button while `remaining > 0` (e.g. "Restore displays (2 more)"), or the user
+can allow pop-ups for the origin — or the fleet can get Chrome's
+`PopupsAllowedForUrls` policy — and then one click restores all of them.
+`blocked: true` means the pop-up was refused and the user needs to allow them.
 
 ## Codec notification (patch #18)
 
