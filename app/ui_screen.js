@@ -16,6 +16,8 @@ const UI = {
         return this.multiMonitorSupport;
     },
     controlChannel: null,
+    awaitingPrimary: false,       // *GH* primary reconnecting, hold for 'primaryready'
+    awaitingPrimaryTimer: null,
     draggingTab: false,
     //Initial Loading of the UI
     prime() {
@@ -209,7 +211,10 @@ const UI = {
             UI.rfb.enableQOI = true;
         }
 
-        if (UI.supportsMultiMonitor) {
+        // *GH* Guarded: a re-attach after the primary reconnects re-runs connect(),
+        // and the channel is deliberately kept open across that gap so this window
+        // can hear 'primaryready'. Opening a second one would double every message.
+        if (UI.supportsMultiMonitor && !UI.controlChannel) {
             UI.controlChannel = new BroadcastChannel(UI.rfb.connectionID);
             UI.controlChannel.addEventListener('message', UI.handleControlMessage)
         }
@@ -235,9 +240,62 @@ const UI = {
                 UI.identify(event.data)
                 break;
             case 'secondarydisconnected':
-                UI.updateVisualState('disconnected');
+                UI.handlePrimaryLost();
+                break;
+            case 'primaryready':
+                UI.handlePrimaryReady();
                 break;
         }
+    },
+
+    // *GH* Secondary displays used to be abandoned by a primary reconnect: the
+    // primary broadcast 'secondarydisconnected' and each popup dropped to a
+    // terminal disconnected screen with a Connect button the user had to click
+    // in every window. Since this fork forces auto-reconnect on, that happened
+    // on every network blip. Instead, hold the window in a reconnecting state
+    // and re-attach when the primary announces itself.
+    //
+    // The BroadcastChannel name is derived from the page URL (core/rfb.js:146),
+    // so it is stable across the primary's reconnect and this window keeps
+    // hearing it. The channel is intentionally NOT closed here.
+    handlePrimaryLost() {
+        if (UI.awaitingPrimary) { return; }
+        UI.awaitingPrimary = true;
+
+        // Drop the dead RFB but leave UI.controlChannel open. Not UI.disconnect(),
+        // which also tears the channel down and would make us deaf to the return.
+        if (UI.rfb) {
+            try {
+                UI.rfb.removeEventListener("connect", UI.connectFinished);
+                UI.rfb.disconnect();
+            } catch (e) {
+                Log.Warn("Secondary teardown failed: " + e);
+            }
+            UI.rfb = null;
+        }
+
+        UI.updateVisualState('reconnecting');
+
+        // Don't spin forever if the primary never returns. The primary gives up
+        // after reconnect_retries x reconnect_delay (30 x 2s); allow margin, then
+        // settle into the real disconnected screen.
+        clearTimeout(UI.awaitingPrimaryTimer);
+        UI.awaitingPrimaryTimer = setTimeout(() => {
+            if (!UI.awaitingPrimary) { return; }
+            UI.awaitingPrimary = false;
+            Log.Warn("Primary display did not return; giving up.");
+            UI.updateVisualState('disconnected');
+        }, 90000);
+    },
+
+    handlePrimaryReady() {
+        if (!UI.awaitingPrimary) { return; }
+        UI.awaitingPrimary = false;
+        clearTimeout(UI.awaitingPrimaryTimer);
+        UI.awaitingPrimaryTimer = null;
+
+        Log.Info("Primary display is back; re-attaching this secondary display.");
+        UI.connect();
     },
 
     updateVisualState(state) {

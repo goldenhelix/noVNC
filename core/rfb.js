@@ -1915,10 +1915,24 @@ export default class RFB extends EventTargetMixin {
 
             case 'connected':
                 this.dispatchEvent(new CustomEvent("connect", { detail: {} }));
+                // *GH* Announce to any secondary display windows that the primary
+                // is live again. They are still open across a primary reconnect
+                // (the BroadcastChannel name is the page URL, so it survives), but
+                // until now nothing told them to come back — the user had to click
+                // Connect in every popup. See app/ui_screen.js handlePrimaryReady.
+                if (this._isPrimaryDisplay) {
+                    this._proxyRFBMessage('primaryready');
+                }
                 break;
 
             case 'disconnecting':
-                this._proxyRFBMessage('secondarydisconnected');
+                // *GH* Only the PRIMARY going away should stand the secondaries
+                // down. This was unguarded, so closing one secondary popup
+                // broadcast 'secondarydisconnected' to all of its siblings and
+                // disconnected them too.
+                if (this._isPrimaryDisplay) {
+                    this._proxyRFBMessage('secondarydisconnected');
+                }
                 this._disconnect();
 
                 this._disconnTimer = setTimeout(() => {
