@@ -46,7 +46,7 @@ smoke test, then move the branch.
 | 4 | `04ce0b5` | `window.addEventListener` postMessage UI toggles | The cross-frame control plane: `show_panel`, `hide_panel`, `open_clipboard`, `close_clipboard`. Adds `example_iframe.html`. |
 | 5 | `20e6445` | Hide clipboard parent div | Companion to #4 — the clipboard block is relocated out of the side panel. |
 | 6 | `0cd2847` | Clipboard close button + suppress connect/disconnect toasts | |
-| 7 | `ae2e00f` | Auto-reconnect + UI polish | Title → `Application Streaming`; keeps scrollbars hidden in `core/rfb.js`; forces `reconnect` on and sets `reconnect_retries: 0`. See **Reconnect** below. |
+| 7 | `ae2e00f` | Auto-reconnect + UI polish | Title → `Application Streaming`; keeps scrollbars hidden in `core/rfb.js`; forces `reconnect` on. (It originally set `reconnect_retries: 0`; patch #23 corrected that to a finite 30 — see **Reconnect**.) |
 | 8 | `301d973` | Fix "Raw channel missing property: send" | `RFB`'s constructor treats a non-string first arg as a raw channel, and patch #1 builds a `URL` object — so it must be `.toString()`d. **Re-verify after every rebase.** |
 | 9 | `e03c4fd` | openurl UnixRelay handler | `core/output/openurl.js` + 2 lines in `core/rfb.js`. |
 | 10 | `61148b5` | view_only: apply before other rfb settings | Lets `?view_only=true` take effect with no flicker. |
