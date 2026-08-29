@@ -59,6 +59,25 @@ import { perfLogger } from '../core/util/performance-logger.js';
 
 const PAGE_TITLE = "KasmVNC";
 
+// *GH* Persisted secondary-display set.
+//
+// VSWarehouse embeds kasmweb SAME-ORIGIN (the iframe src is a relative path),
+// so localStorage is one unpartitioned bucket shared by every app instance on
+// this origin -- the same store across sessions. That is the right scope here:
+// which monitors a user spreads the desktop across is a property of their
+// physical desk, not of their account, so it should NOT follow them to another
+// machine.
+//
+// We store only HOW MANY secondary displays and WHICH PHYSICAL SCREEN each sat
+// on. We deliberately do NOT store the server-side arrangement: that already
+// restores itself, because each secondary reports its own window.screenLeft/
+// screenTop when it registers (app/ui_screen.js connect -> UI.screenRegistered).
+//
+// Never key any of this on screenID -- core/display.js mints a fresh uuidv4()
+// on every popup page load.
+const GH_DISPLAY_SET_KEY = 'gh_display_set';
+const GH_DISPLAY_SET_VERSION = 1;
+
 var currentEventCount = -1;
 var idleCounter = 0;
 
@@ -93,6 +112,12 @@ const UI = {
     currentDisplay: null,
     displayWindows: new Map([['primary', 'primary']]),
     registeredWindows: new Map([['primary', 'primary']]),
+
+    // *GH* display save/restore
+    _screenDetails: null,          // cached live ScreenDetails, if permitted
+    _restoringDisplays: false,
+    _saveDisplaySetTimer: null,
+    _restoredSignatures: [],       // saved entries already reopened this session
     fpsChart: null,
     bandwidthChart: null,
     jitterChart: null,
@@ -214,6 +239,10 @@ const UI = {
             action: "noVNC_initialized",
             value: null
         }, "*");
+
+        // *GH* announce saved-display availability up front so the parent's
+        // Restore control can appear as soon as the client is alive.
+        UI.announceDisplayRestore();
 
         window.addEventListener("message", (e) => {
             if (typeof e.data !== "object" || !e.data.action) {
@@ -2190,6 +2219,11 @@ const UI = {
         UI.reconnectAttempts = 0;
         UI.suppressDisconnectRx = false;
 
+        // *GH* Tell the parent whether a saved display set is waiting, so it can
+        // show or hide its Restore control without polling. Every reconnect gets
+        // a fresh RFB with no secondaries, so this re-arms then too.
+        UI.announceDisplayRestore();
+
         let msg;
         if (UI.getSetting('encrypt')) {
             msg = _("Connected (encrypted) to ") + UI.desktopName;
@@ -2550,6 +2584,17 @@ const UI = {
                 case 'control_displays':
                     parent.postMessage({ action: 'can_control_displays', value: true}, '*' );
                     break;
+                // *GH* display save/restore -- see the contract comment above
+                // UI.ghScreenSignature().
+                case 'query_restore_displays':
+                    UI.announceDisplayRestore();
+                    break;
+                case 'restore_displays':
+                    UI.restoreDisplays();
+                    break;
+                case 'forget_displays':
+                    UI.clearDisplaySet();
+                    break;
                 case 'enable_threading':
                     UI.forceSetting('enable_threading', event.data.value, false);
                     UI.threading();
@@ -2758,6 +2803,246 @@ const UI = {
 
     closeDisplays() {
         document.getElementById('noVNC_displays').classList.remove("noVNC_open");
+    },
+
+    // *GH* ---------------- display set: save / restore ----------------
+    //
+    // Parent (VSWarehouse) contract. UI.sendMessage() is dead in this fork
+    // (gated on isInsideKasmVDI(), hardcoded false), so these use an ungated
+    // window.parent.postMessage, matching openurl.js / host.js / control_displays.
+    //
+    //   parent -> client  { action: 'query_restore_displays' }
+    //   parent -> client  { action: 'restore_displays' }      <- MUST be sent from a
+    //                        real click handler: window.open() needs transient user
+    //                        activation, and the parent is same-origin so its click
+    //                        activates this frame too.
+    //   parent -> client  { action: 'forget_displays' }
+    //
+    //   client -> parent  { action: 'can_restore_displays',
+    //                       value: { available: bool, count: N, remaining: N } }
+    //   client -> parent  { action: 'restore_displays_result',
+    //                       value: { opened: N, remaining: N, blocked: bool } }
+    //
+    // Note the message listener is registered in UI.connect(), so the parent
+    // should wait for the existing 'noVNC_initialized' message before sending.
+    //
+    // window.open() consumes user activation and browsers allow ONE popup per
+    // gesture, so each 'restore_displays' opens at most one window and reports
+    // what is left. The parent should re-arm its button while remaining > 0, or
+    // ask the user to allow pop-ups for this origin to do them all in one click.
+
+    ghScreenSignature(screen) {
+        // Stable across sessions for a fixed desk; deliberately excludes anything
+        // per-window or per-page-load.
+        return [
+            screen.label || '',
+            screen.left, screen.top, screen.width, screen.height,
+            screen.devicePixelRatio,
+        ].join('|');
+    },
+
+    async ghGetScreenDetails() {
+        if (UI._screenDetails) { return UI._screenDetails; }
+        if (!('getScreenDetails' in window)) { return null; }
+        try {
+            const { state } = await navigator.permissions.query({ name: 'window-management' });
+            // 'prompt' would raise a permission dialog; only take it when already granted,
+            // so nothing here can surprise the user mid-session.
+            if (state !== 'granted') { return null; }
+            UI._screenDetails = await window.getScreenDetails();
+            return UI._screenDetails;
+        } catch (e) {
+            Log.Debug('window-management unavailable: ' + e);
+            return null;
+        }
+    },
+
+    readDisplaySet() {
+        try {
+            const raw = window.localStorage.getItem(GH_DISPLAY_SET_KEY);
+            if (!raw) { return null; }
+            const rec = JSON.parse(raw);
+            if (!rec || rec.v !== GH_DISPLAY_SET_VERSION) { return null; }
+            if (!Number.isFinite(rec.count) || rec.count < 1) { return null; }
+            return rec;
+        } catch (e) {
+            Log.Warn('Could not read saved display set: ' + e);
+            return null;
+        }
+    },
+
+    clearDisplaySet() {
+        try {
+            window.localStorage.removeItem(GH_DISPLAY_SET_KEY);
+        } catch (e) { /* private mode */ }
+        UI._restoredSignatures = [];
+        UI.announceDisplayRestore();
+    },
+
+    // Count of secondary displays currently registered with the server.
+    ghSecondaryCount() {
+        if (!UI.rfb) { return 0; }
+        try {
+            const plan = UI.rfb.getScreenPlan();
+            return Math.max(0, (plan.screens || []).length - 1);
+        } catch (e) {
+            return 0;
+        }
+    },
+
+    scheduleSaveDisplaySet() {
+        // screenregistered also fires on plain browser resizes, so debounce and
+        // let saveDisplaySet() decide whether anything actually changed.
+        clearTimeout(UI._saveDisplaySetTimer);
+        UI._saveDisplaySetTimer = setTimeout(UI.saveDisplaySet, 400);
+    },
+
+    async saveDisplaySet() {
+        if (UI._restoringDisplays || !UI.connected) { return; }
+
+        const count = UI.ghSecondaryCount();
+        // Never auto-persist "zero". Session teardown unregisters every secondary,
+        // and that must not erase the set the user wants back next time. Clearing
+        // is explicit, via the parent's 'forget_displays'.
+        if (count < 1) { return; }
+
+        const rec = { v: GH_DISPLAY_SET_VERSION, ts: Date.now(), count, displays: [] };
+
+        const details = await UI.ghGetScreenDetails();
+        if (details) {
+            // Record which physical screens the secondary windows are actually on.
+            for (const [id, win] of UI.displayWindows) {
+                if (id === 'primary' || !win || win.closed) { continue; }
+                try {
+                    const cx = win.screenLeft + (win.outerWidth / 2);
+                    const cy = win.screenTop + (win.outerHeight / 2);
+                    const screen = details.screens.find(sc =>
+                        cx >= sc.left && cx < sc.left + sc.width &&
+                        cy >= sc.top && cy < sc.top + sc.height);
+                    if (screen) { rec.displays.push({ sig: UI.ghScreenSignature(screen) }); }
+                } catch (e) { /* cross-origin or closed window */ }
+            }
+        }
+
+        try {
+            const serialized = JSON.stringify(rec);
+            const prev = window.localStorage.getItem(GH_DISPLAY_SET_KEY);
+            // ts changes every time, so compare on the parts that matter.
+            if (prev) {
+                const p = JSON.parse(prev);
+                if (p && p.count === rec.count &&
+                    JSON.stringify(p.displays) === JSON.stringify(rec.displays)) {
+                    return;
+                }
+            }
+            window.localStorage.setItem(GH_DISPLAY_SET_KEY, serialized);
+            Log.Debug('Saved display set: ' + serialized);
+            UI.announceDisplayRestore();
+        } catch (e) {
+            Log.Warn('Could not save display set: ' + e);
+        }
+    },
+
+    ghRestoreRemaining() {
+        const rec = UI.readDisplaySet();
+        if (!rec) { return 0; }
+        const live = UI.ghSecondaryCount();
+        return Math.max(0, rec.count - live);
+    },
+
+    announceDisplayRestore() {
+        const rec = UI.readDisplaySet();
+        const remaining = UI.ghRestoreRemaining();
+        window.parent.postMessage({
+            action: 'can_restore_displays',
+            value: {
+                available: !!rec && remaining > 0,
+                count: rec ? rec.count : 0,
+                remaining: remaining,
+            },
+        }, '*');
+    },
+
+    async restoreDisplays() {
+        // A secondary can only attach to a live primary, so refuse while the
+        // session is down rather than opening a popup that cannot register.
+        if (!UI.connected || !UI.rfb) {
+            Log.Warn('Ignoring restore_displays: no live session.');
+            window.parent.postMessage({ action: 'restore_displays_result',
+                value: { opened: 0, remaining: UI.ghRestoreRemaining(), blocked: false } }, '*');
+            return;
+        }
+
+        const rec = UI.readDisplaySet();
+        if (!rec) {
+            window.parent.postMessage({ action: 'restore_displays_result',
+                value: { opened: 0, remaining: 0, blocked: false } }, '*');
+            return;
+        }
+
+        if (UI.ghRestoreRemaining() < 1) {
+            UI.announceDisplayRestore();
+            window.parent.postMessage({ action: 'restore_displays_result',
+                value: { opened: 0, remaining: 0, blocked: false } }, '*');
+            return;
+        }
+
+        // Resolve screen details BEFORE the first window.open(): an await after a
+        // click can outlive the transient activation in some browsers.
+        const details = await UI.ghGetScreenDetails();
+
+        let target = null;
+        if (details && rec.displays && rec.displays.length) {
+            const occupied = new Set(UI._restoredSignatures);
+            const wanted = rec.displays
+                .map(d => d.sig)
+                .find(sig => !occupied.has(sig));
+            if (wanted) {
+                target = details.screens.find(sc => UI.ghScreenSignature(sc) === wanted) || null;
+                if (target) { UI._restoredSignatures.push(wanted); }
+            }
+        }
+
+        UI._restoringDisplays = true;
+        let opened = 0;
+        let blocked = false;
+        try {
+            const win = UI.ghOpenSecondary(target);
+            if (win) {
+                opened = 1;
+            } else {
+                blocked = true;
+                Log.Warn('Display restore blocked -- pop-ups are not allowed for this origin.');
+            }
+        } finally {
+            UI._restoringDisplays = false;
+        }
+
+        const remaining = Math.max(0, UI.ghRestoreRemaining() - opened);
+        window.parent.postMessage({ action: 'restore_displays_result',
+            value: { opened, remaining, blocked } }, '*');
+        UI.announceDisplayRestore();
+    },
+
+    // Open one secondary display window, optionally on a specific physical screen.
+    // Placement features are always built from the LIVE screen's avail* box, never
+    // from the persisted record, which stores full bounds for identity only.
+    ghOpenSecondary(screen) {
+        const new_display_path = window.location.pathname.replace(/[^/]*$/, '');
+        const windowId = uuidv4();
+        const new_display_url = `${window.location.protocol}//${window.location.host}${new_display_path}screen.html?windowId=${windowId}`;
+
+        let options = 'toolbar=0,location=0,menubar=0';
+        if (screen) {
+            options = 'left=' + screen.availLeft + ',top=' + screen.availTop +
+                      ',width=' + screen.availWidth + ',height=' + screen.availHeight +
+                      ',fullscreen';
+        }
+
+        const newdisplay = window.open(new_display_url, '_blank', options);
+        if (!newdisplay) { return null; }
+        UI.displayWindows.set(windowId, newdisplay);
+        return newdisplay;
     },
 
     displaysRefresh() {
@@ -3822,6 +4107,9 @@ const UI = {
 
             UI.updateMonitors(screenPlan)
             UI._identify(UI.monitors)
+            // *GH* the display set changed -- persist it (debounced; this also
+            // fires on plain browser resizes).
+            UI.scheduleSaveDisplaySet()
         }
 
     },
