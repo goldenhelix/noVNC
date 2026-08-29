@@ -242,7 +242,20 @@ function isFileDrag(e) {
     return false;
 }
 
+// Drag/drop is wired to `window` and to a body-level overlay, so it must be
+// installed exactly once per page — not once per RFB. Upstream's VNC-377
+// auto-reconnect builds a fresh RFB for every reconnect (and this fork forces
+// `reconnect` on), so re-running the initializer would stack another overlay
+// and another four listeners each time: one dropped file would then open N
+// modals and upload itself N times. Install once, and retarget the live RFB.
+let dragDropAttached = false;
+let currentRfb = null;
+
 function attachDragDrop(rfb) {
+    currentRfb = rfb;
+    if (dragDropAttached) return;
+    dragDropAttached = true;
+
     const overlay = makeOverlay();
     let depth = 0;
 
@@ -272,7 +285,7 @@ function attachDragDrop(rfb) {
 
         showModal(files, async (dest) => {
             for (const f of files) {
-                try { await uploadOne(rfb, f, dest); }
+                try { await uploadOne(currentRfb, f, dest); }
                 catch (_e) { /* per-file error already surfaced via Transfers */ }
             }
         }, () => { /* canceled */ });

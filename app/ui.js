@@ -325,7 +325,13 @@ const UI = {
         UI.initSetting('repeaterID', '');
         UI.initSetting('reconnect', true);
         UI.initSetting('reconnect_delay', 2000);
-        UI.initSetting('reconnect_retries', 5);
+        // *GH*: 0 == unlimited (see hasReconnectRetriesRemaining). Upstream
+        // defaults to 5, which with our 2s delay gives up ~10s into an outage
+        // and leaves the embedded session permanently dead — and because
+        // isInsideKasmVDI() is false here, reconnectRetriesExceeded() only
+        // logs and opens the control bar, so the parent frame is never told.
+        // Unlimited retries is what this fork did before upstream added a cap.
+        UI.initSetting('reconnect_retries', 0);
         UI.initSetting('idle_disconnect', 20);
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
