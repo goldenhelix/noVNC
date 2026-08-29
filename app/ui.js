@@ -2107,22 +2107,32 @@ const UI = {
         UI.jitterChart = new BasicChart('noVNC_jitter_path', 'Jitter', 60, 0);
 
         //key events for KasmVNC control
-        document.addEventListener('keyup', function (event) {
-            if (event.ctrlKey && event.shiftKey) {
-                switch(event.keyCode) {
-                        case 49:
-                            UI.toggleNav();
-                            break;
-                        case 50:
-                            UI.toggleRelativePointer();
-                            break;
-                        case 51:
-                            UI.togglePointerLock();
-                            break;
-                    }
-            }
+        // *GH* install-once. This sits at the tail of UI.connect(), which
+        // UI.reconnect() re-invokes for every auto-reconnect attempt, so an
+        // anonymous listener here accumulated one copy per attempt — each one
+        // firing toggleNav/toggleRelativePointer/togglePointerLock again for a
+        // single keypress. Same class as the drag/drop handlers in
+        // core/output/upload.js; see kasmweb/GOLDENHELIX.md.
+        if (!UI._shortcutKeyupInstalled) {
+            UI._shortcutKeyupInstalled = true;
+            document.addEventListener('keyup', UI.handleShortcutKeyup, true);
+        }
+    },
 
-        }, true);
+    handleShortcutKeyup(event) {
+        if (event.ctrlKey && event.shiftKey) {
+            switch (event.keyCode) {
+                case 49:
+                    UI.toggleNav();
+                    break;
+                case 50:
+                    UI.toggleRelativePointer();
+                    break;
+                case 51:
+                    UI.togglePointerLock();
+                    break;
+            }
+        }
     },
 
     disconnect() {

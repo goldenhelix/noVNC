@@ -369,8 +369,13 @@ const UI = {
     disconnect() {
         if (UI.rfb) {
             UI.rfb.disconnect();
-            if (UI.supportsMultiMonitor) {
+            if (UI.supportsMultiMonitor && UI.controlChannel) {
                 UI.controlChannel.removeEventListener('message', UI.handleControlMessage);
+                // *GH* removeEventListener alone leaves the BroadcastChannel open, so
+                // a secondary that reconnects stacks another subscriber on the same
+                // connectionID channel. connect() recreates it, so close it here.
+                UI.controlChannel.close();
+                UI.controlChannel = null;
                 UI.rfb.removeEventListener("connect", UI.connectFinished);
             }
             UI.rfb = null;

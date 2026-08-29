@@ -212,6 +212,7 @@ export default class RFB extends EventTargetMixin {
         this._resizeTimeout = null;     // resize rate limiting
         this._mouseMoveTimer = null;
         this._forceFullFrameUpdateTimeout = null;
+        this._udpUpgradeTimeout = null;  // *GH* so _disconnect can cancel it
 
         // Decoder states
         this._decoders = {};
@@ -254,7 +255,10 @@ export default class RFB extends EventTargetMixin {
         this._supportsMultiMonitor = (typeof BroadcastChannel !== "undefined" && typeof SharedWorker !== "undefined");
         if (this._supportsMultiMonitor) {
             this._controlChannel = new BroadcastChannel(this._connectionID);
-            this._controlChannel.addEventListener('message', this._handleControlMessage.bind(this));
+            // *GH* keep the bound reference — an anonymous .bind() here cannot be
+            // removed later, and this channel must be torn down on disconnect.
+            this._controlMessageHandler = this._handleControlMessage.bind(this);
+            this._controlChannel.addEventListener('message', this._controlMessageHandler);
             Log.Debug("Attached to registrationChannel for secondary displays.")
         } else {
             Log.Warn("This browser does not support multi-monitor setups.");
@@ -1535,7 +1539,7 @@ export default class RFB extends EventTargetMixin {
         }
 
 	    if (this._useUdp && typeof RTCPeerConnection !== 'undefined' && this._isPrimaryDisplay) {
-            setTimeout(function() { this._sendUdpUpgrade() }.bind(this), 3000);
+            this._udpUpgradeTimeout = setTimeout(function() { this._sendUdpUpgrade() }.bind(this), 3000);
         }
 
         Log.Debug("<< RFB.connect");
@@ -1566,6 +1570,30 @@ export default class RFB extends EventTargetMixin {
         window.removeEventListener('resize', this._eventHandlers.windowResize);
         window.removeEventListener('focus', this._eventHandlers.handleFocusChange);
         document.removeEventListener('visibilitychange', this._eventHandlers.handleVisibilityChange);
+
+        // *GH* Everything below leaked once per connect. That was survivable when a
+        // page made one connection, but upstream VNC-377 builds a NEW RFB for every
+        // auto-reconnect and this fork forces reconnect on, so each network blip left
+        // another live listener/timer bound to a dead RFB — stale BroadcastChannel
+        // subscribers still reacting to multi-monitor control messages, and timers
+        // still writing to a closed socket.
+        window.removeEventListener('blur', this._eventHandlers.handleFocusChange);
+        window.removeEventListener('mouseover', this._eventHandlers.handleMouseOut);
+        if (isIOS()) {
+            this._canvas.removeEventListener("touchend", this._eventHandlers.updateHiddenKeyboard);
+        }
+
+        clearTimeout(this._udpUpgradeTimeout);
+        this._udpUpgradeTimeout = null;
+        clearTimeout(this._forceFullFrameUpdateTimeout);
+        this._forceFullFrameUpdateTimeout = null;
+
+        if (this._controlChannel) {
+            this._controlChannel.removeEventListener('message', this._controlMessageHandler);
+            this._controlChannel.close();
+            this._controlChannel = null;
+            this._controlMessageHandler = null;
+        }
 
         this._keyboard.ungrab();
         this._gestures.detach();
