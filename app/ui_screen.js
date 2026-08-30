@@ -4,6 +4,7 @@ import { isTouchDevice, isSafari, hasScrollbarGutter, dragThreshold, supportsBin
     from '../core/util/browser.js';
 import { MouseButtonMapper, XVNC_BUTTONS } from "../core/mousebuttonmapper.js";
 import * as Log from '../core/util/logging.js';
+import _ from './localization.js';
 import {showNotification} from "../core/util/notifications";
 
 const UI = {

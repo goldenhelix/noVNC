@@ -11,6 +11,14 @@ function handleError(event, err) {
     try {
         const msg = document.getElementById('noVNC_fallback_errormsg');
 
+        // The dismiss control removes the whole overlay subtree, so a later
+        // error finds no message element. Rebuilding is not possible here;
+        // fall through silently rather than throwing into the catch below,
+        // which would document.write() over the live session.
+        if (!msg) {
+            return false;
+        }
+
         // Work around Firefox bug:
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1685038
         if (event.message === "ResizeObserver loop completed with undelivered notifications.") {
@@ -46,6 +54,13 @@ function handleError(event, err) {
             div.className = 'noVNC_stack';
             div.appendChild(document.createTextNode(err.stack));
             msg.appendChild(div);
+        }
+
+        const close = document.getElementById('noVNC_close_error');
+        if (close) {
+            close.onclick = () => {
+                document.getElementById('noVNC_fallback_error').remove();
+            };
         }
 
         document.getElementById('noVNC_fallback_error')
