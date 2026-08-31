@@ -276,6 +276,7 @@ const UI = {
         }
 
         UI.updateVisualState('reconnecting');
+        UI.showStatus('Waiting for the main window to reconnect', 'warn', 90000);
 
         // Don't spin forever if the primary never returns. The primary gives up
         // after reconnect_retries x reconnect_delay (30 x 2s); allow margin, then
@@ -296,6 +297,7 @@ const UI = {
         UI.awaitingPrimaryTimer = null;
 
         Log.Info("Primary display is back; re-attaching this secondary display.");
+        UI.hideStatus();
         UI.connect();
     },
 
@@ -306,6 +308,8 @@ const UI = {
         document.documentElement.classList.remove("noVNC_reconnecting");
         document.documentElement.classList.remove("noVNC_disconnected");
 
+        // screen.html has no #noVNC_transition container, so this is always null
+        // here; every state must tolerate its absence.
         const transitionElem = document.getElementById("noVNC_transition_text");
         if (WebUtil.isInsideKasmVDI())
         {
@@ -318,7 +322,7 @@ const UI = {
             case 'init':
                 break;
             case 'connecting':
-                transitionElem.textContent = _("Connecting...");
+                if (transitionElem) transitionElem.textContent = _("Connecting...");
                 document.documentElement.classList.add("noVNC_connecting");
                 break;
             case 'connected':
@@ -328,7 +332,7 @@ const UI = {
                 }
                 break;
             case 'disconnecting':
-                transitionElem.textContent = _("Disconnecting...");
+                if (transitionElem) transitionElem.textContent = _("Disconnecting...");
                 document.documentElement.classList.add("noVNC_disconnecting");
                 break;
             case 'disconnected':
@@ -339,7 +343,7 @@ const UI = {
                 UI.disconnect()
                 break;
             case 'reconnecting':
-                transitionElem.textContent = _("Reconnecting...");
+                if (transitionElem) transitionElem.textContent = _("Reconnecting...");
                 document.documentElement.classList.add("noVNC_reconnecting");
                 break;
             default:
