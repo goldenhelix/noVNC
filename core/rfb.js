@@ -1168,45 +1168,58 @@ export default class RFB extends EventTargetMixin {
         let dataset = [];
         let mimes = [];
         let h = 0;
-        for (let i = 0; i < clipdata.length; i++) {
-            for (let ti = 0; ti < clipdata[i].types.length; ti++) {
-                let mime = clipdata[i].types[ti];
+        const prevClipHash = this._clipHash;
+        try {
+            for (let i = 0; i < clipdata.length; i++) {
+                for (let ti = 0; ti < clipdata[i].types.length; ti++) {
+                    let mime = clipdata[i].types[ti];
 
-                switch (mime) {
-                    case 'image/png':
-                    case 'text/plain':
-                    case 'text/html':
-                        let blob = await clipdata[i].getType(mime);
-                        if (!blob) {
-                            continue;
-                        }
-                        let buff = await blob.arrayBuffer();
-                        let data = new Uint8Array(buff);
-
-                        if (!h) {
-                            h = hashUInt8Array(data);
-                            // avoid resending the same data if larger than 64k
-                            if (h === this._clipHash) {
-                                Log.Debug('No clipboard changes');
-                                return;
-                            } else {
-                                this._clipHash = h;
+                    switch (mime) {
+                        case 'image/png':
+                        case 'text/plain':
+                        case 'text/html':
+                            let blob = await clipdata[i].getType(mime);
+                            if (!blob) {
+                                continue;
                             }
-                        }
+                            let buff = await blob.arrayBuffer();
+                            let data = new Uint8Array(buff);
 
-                        if (mimes.includes(mime)) {
-                            continue;
-                        }
+                            if (!h) {
+                                h = hashUInt8Array(data);
+                                // avoid resending the same data if larger than 64k
+                                if (h === this._clipHash) {
+                                    Log.Debug('No clipboard changes');
+                                    return;
+                                } else {
+                                    this._clipHash = h;
+                                }
+                            }
 
-                        mimes.push(mime);
-                        dataset.push(data);
-                        Log.Debug('Sending mime type: ' + mime);
-                        break;
-                    default:
-                        Log.Info('skipping clip send mime type: ' + mime)
+                            if (mimes.includes(mime)) {
+                                continue;
+                            }
+
+                            mimes.push(mime);
+                            dataset.push(data);
+                            Log.Debug('Sending mime type: ' + mime);
+                            break;
+                        default:
+                            Log.Info('skipping clip send mime type: ' + mime)
+                    }
+
                 }
-
             }
+        } catch (err) {
+            // The ClipboardItems from navigator.clipboard.read() are a lazy
+            // snapshot; getType() rejects with InvalidStateError if the system
+            // clipboard changed since (user copy, or our own write of server
+            // clipboard data). Drop the stale snapshot and re-read on the next
+            // user-driven event.
+            Log.Debug("Clipboard read aborted: " + err);
+            this._clipHash = prevClipHash;
+            this._resendClipboardNextUserDrivenEvent = true;
+            return;
         }
 
         //if png is present and  text/plain is not, remove other variations of images to save bandwidth
